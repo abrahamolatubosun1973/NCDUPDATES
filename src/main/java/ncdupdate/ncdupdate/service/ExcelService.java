@@ -2,6 +2,7 @@ package ncdupdate.ncdupdate.service;
 
 
 import com.opencsv.CSVReader;
+import lombok.extern.slf4j.Slf4j;
 import ncdupdate.ncdupdate.model.PatientData;
 import ncdupdate.ncdupdate.repository.PatientDataRepository;
 //import org.apache.poi.ss.usermodel.*;
@@ -17,9 +18,12 @@ import java.io.InputStreamReader;
 import java.io.Reader;
 import java.util.Date;
 import java.text.SimpleDateFormat;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Optional;
 
 @Service
+@Slf4j
 public class ExcelService {
     @Autowired
     PatientDataRepository patientDataRepository;
@@ -27,15 +31,22 @@ public class ExcelService {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
-    public void processCsvFile(MultipartFile file) {
-        // Use OpenCSV library for easier CSV parsing
+    public Map<String, Integer> processCsvFile(MultipartFile file) throws Exception{
+        Map<String, Integer> response = new HashMap<>();
+
         try (Reader reader = new BufferedReader(new InputStreamReader(file.getInputStream()))) {
             CSVReader csvReader = new CSVReader(reader);
             // Skip header row (optional)
             csvReader.readNext();
 
+            int totalRowsFromCsv = 0;
+            int totalRowsFromDatabase = 0;
+            int totalRecordsUpdated = 0;
+
             String[] line;
             while ((line = csvReader.readNext()) != null) {
+                totalRowsFromCsv++;
+
                 // Assuming patient_id is in the first column, and other fields follow
                 int integratorId = Integer.parseInt(line[0]);
                 String patientIdentifier = line[1].trim();
@@ -48,25 +59,43 @@ public class ExcelService {
                 String bmiRemark = line[8].trim();
                 SimpleDateFormat formatter = new SimpleDateFormat("dd/MM/yyyy");
                 String encounterDateString = line[9].trim();
-                Date encounterDate = null;
-                encounterDate = formatter.parse(encounterDateString);
+                Date encounterDate = formatter.parse(encounterDateString);
                 java.sql.Date encounterSqlDate = new java.sql.Date(encounterDate.getTime());
 
-                if(encounterSqlDate != null){
-                    // Update logic with repository call
-                    //PatientData patientData =
-                            findAndUpdatePatientData(integratorId, patientIdentifier, ncdBpUpper, ncdBpLower, ncdRbs, bmiWeight, bmiHeight, bmiValue, bmiRemark,encounterSqlDate);
+                if (encounterSqlDate != null) {
+                    Optional<PatientData> patientDataOptional = patientDataRepository.findByIntegratorIdAndPatientIdentifierAndEncounterDate(integratorId,patientIdentifier, encounterSqlDate);
+                    if (patientDataOptional.isPresent()) {
+                        totalRowsFromDatabase++;
+                        PatientData patientData = patientDataOptional.get();
+                        patientData.setNcdBpUpper(ncdBpUpper);
+                        patientData.setNcdBpLower(ncdBpLower);
+                        patientData.setNcdRbs(ncdRbs);
+                        patientData.setBmiWeight(bmiWeight);
+                        patientData.setBmiHeight(bmiHeight);
+                        patientData.setBmiValue(bmiValue);
+                        patientData.setBmiRemark(bmiRemark);
+                        patientData.setEncounterDate(encounterSqlDate);
+                        patientDataRepository.save(patientData);
+                        totalRecordsUpdated++;
+                    }
                 }
             }
+
+            response.put("totalRowsFromCsv", totalRowsFromCsv);
+            response.put("totalRowsFromDatabase", totalRowsFromDatabase);
+            response.put("totalRecordsUpdated", totalRecordsUpdated);
+
+            log.info("Response: {}", response);
+
         } catch (Exception e) {
-            System.out.println("An error occurred while processing the CSV file: " + e.getMessage());
-            e.printStackTrace();
+            log.error("An error occurred while processing the CSV file: {}", e.getMessage(), e);
         }
+
+        return response;
     }
 
-    // Separate method for update logic with error handling
-    private PatientData findAndUpdatePatientData(int integratorId, String patientIdentifier, double ncdBpUpper, double ncdBpLower, double ncdRbs,
-                                                 double bmiWeight, double bmiHeight, double bmiValue, String bmiRemark, java.sql.Date encounterSqlDate) {
+
+
 //        try{
 //            jdbcTemplate.execute("SET FOREIGN_KEY_CHECKS = 0;");
 //            jdbcTemplate.update("UPDATE integrator_client_intake "+
@@ -79,27 +108,6 @@ public class ExcelService {
 //            System.out.println("An error occurred while updating patient data: " + e.getMessage());
 //            e.printStackTrace();
 //        }
-
-        Optional<PatientData> patientDataOptional = patientDataRepository.findByIntegratorIdAndEncounterDate(integratorId,encounterSqlDate); // Assuming unique identifier
-        if (patientDataOptional.isPresent()) {
-            PatientData patientData = patientDataOptional.get();
-            patientData.setNcdBpUpper(ncdBpUpper);
-            patientData.setNcdBpLower(ncdBpLower);
-            patientData.setNcdRbs(ncdRbs);
-            patientData.setBmiWeight(bmiWeight);
-            patientData.setBmiHeight(bmiHeight);
-            patientData.setBmiValue(bmiValue);
-            patientData.setBmiRemark(bmiRemark);
-            patientData.setEncounterDate(encounterSqlDate);
-            return patientDataRepository.save(patientData);
-        } else {
-            // Handle scenario where patient data is not found (optional)
-            System.out.println("Patient with ID " +integratorId+"  and "+ patientIdentifier + " and encounter date " + encounterSqlDate + " not found. Skipping update.");
-            return null;
-        }
-    }
-
-
 
 
 

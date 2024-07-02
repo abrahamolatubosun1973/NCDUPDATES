@@ -14,7 +14,7 @@ import java.util.Date;
 @Table(name = "integrator_client_intake")
 public class PatientData {
     @Id
-    @Column(name = "integrator_id")
+    @Column(name = "client_intake_id")
     private int integratorId;
 
     @Column(name = "patient_id")

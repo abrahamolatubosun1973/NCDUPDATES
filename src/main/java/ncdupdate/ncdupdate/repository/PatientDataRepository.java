@@ -13,7 +13,7 @@ import java.util.Optional;
 public interface PatientDataRepository extends JpaRepository<PatientData, Long> {
     //Using JPA Entity
    // @Query(value="SELECT * FROM integrator_client_intake s WHERE s.client_intake_id=?1 AND encounter_date=?2",nativeQuery = true)
-  Optional<PatientData> findByIntegratorIdAndEncounterDate (int integratorId, java.sql.Date encounterDate);
+  Optional<PatientData> findByIntegratorIdAndPatientIdentifierAndEncounterDate (int integratorId,String patientIdentifier, java.sql.Date encounterDate);
 
 
 }
