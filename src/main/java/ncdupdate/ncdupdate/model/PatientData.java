@@ -1,8 +1,12 @@
 package ncdupdate.ncdupdate.model;
 
-import jakarta.persistence.*;
+//import jakarta.persistence.*;
 import lombok.*;
 
+import javax.persistence.Column;
+import javax.persistence.Entity;
+import javax.persistence.Id;
+import javax.persistence.Table;
 import java.util.Date;
 
 @Data

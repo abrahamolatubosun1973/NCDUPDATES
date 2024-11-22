@@ -19,8 +19,6 @@ public class ExcelUploadController {
 private ExcelService excelService;
 
 @PostMapping("/upload")
-//@RequestParam(value = "files") MultipartFile[] files
-// @PostMapping(value = "/upload", method = RequestMethod.POST, consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<Map<String,Integer>> uploadExcelFile(@RequestParam(value = "file") MultipartFile file){
     try{
            Map<String,Integer> response = excelService.processCsvFile(file);

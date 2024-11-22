@@ -16,11 +16,10 @@ import java.io.BufferedReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.Reader;
-import java.util.Date;
+import java.util.*;
 import java.text.SimpleDateFormat;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Optional;
+import java.text.ParseException;
+import java.text.ParseException;
 
 @Service
 @Slf4j
@@ -33,39 +32,42 @@ public class ExcelService {
 
     public Map<String, Integer> processCsvFile(MultipartFile file) throws Exception{
         Map<String, Integer> response = new HashMap<>();
+        response.put("totalRowsFromCsv", 0);
+        response.put("totalRowsFromDatabase", 0);
+        response.put("totalRecordsUpdated", 0);
 
-        try (Reader reader = new BufferedReader(new InputStreamReader(file.getInputStream()))) {
-            CSVReader csvReader = new CSVReader(reader);
-            // Skip header row (optional)
-            csvReader.readNext();
+        try (Reader reader = new BufferedReader(new InputStreamReader(file.getInputStream()));
+             CSVReader csvReader = new CSVReader(reader)) {
 
-            int totalRowsFromCsv = 0;
-            int totalRowsFromDatabase = 0;
-            int totalRecordsUpdated = 0;
-
+            csvReader.readNext(); // Skip header row
             String[] line;
+
             while ((line = csvReader.readNext()) != null) {
-                totalRowsFromCsv++;
+                if (line.length < 10) {
+                    log.warn("Skipping row due to insufficient columns: {}", Arrays.toString(line));
+                    continue;
+                }
 
-                // Assuming patient_id is in the first column, and other fields follow
-                int integratorId = Integer.parseInt(line[0]);
-                String patientIdentifier = line[1].trim();
-                double ncdBpUpper = Double.parseDouble(line[2]);
-                double ncdBpLower = Double.parseDouble(line[3]);
-                double ncdRbs = Double.parseDouble(line[4]);
-                double bmiWeight = Double.parseDouble(line[5]);
-                double bmiHeight = Double.parseDouble(line[6]);
-                double bmiValue = Double.parseDouble(line[7]);
-                String bmiRemark = line[8].trim();
-                SimpleDateFormat formatter = new SimpleDateFormat("dd/MM/yyyy");
-                String encounterDateString = line[9].trim();
-                Date encounterDate = formatter.parse(encounterDateString);
-                java.sql.Date encounterSqlDate = new java.sql.Date(encounterDate.getTime());
+                try {
+                    int integratorId = Integer.parseInt(line[0]);
+                    String patientIdentifier = line[1].trim();
+                    double ncdBpUpper = Double.parseDouble(line[2]);
+                    double ncdBpLower = Double.parseDouble(line[3]);
+                    double ncdRbs = Double.parseDouble(line[4]);
+                    double bmiWeight = Double.parseDouble(line[5]);
+                    double bmiHeight = Double.parseDouble(line[6]);
+                    double bmiValue = Double.parseDouble(line[7]);
+                    String bmiRemark = line[8].trim();
+                    SimpleDateFormat formatter = new SimpleDateFormat("dd/MM/yyyy");
+                    Date encounterDate = formatter.parse(line[9].trim());
+                    java.sql.Date encounterSqlDate = new java.sql.Date(encounterDate.getTime());
 
-                if (encounterSqlDate != null) {
-                    Optional<PatientData> patientDataOptional = patientDataRepository.findByIntegratorIdAndPatientIdentifierAndEncounterDate(integratorId,patientIdentifier, encounterSqlDate);
+                    Optional<PatientData> patientDataOptional = patientDataRepository
+                            .findByIntegratorIdAndPatientIdentifierAndEncounterDate(
+                                    integratorId, patientIdentifier, encounterSqlDate);
+
                     if (patientDataOptional.isPresent()) {
-                        totalRowsFromDatabase++;
+                        response.put("totalRowsFromDatabase", response.get("totalRowsFromDatabase") + 1);
                         PatientData patientData = patientDataOptional.get();
                         patientData.setNcdBpUpper(ncdBpUpper);
                         patientData.setNcdBpLower(ncdBpLower);
@@ -74,24 +76,86 @@ public class ExcelService {
                         patientData.setBmiHeight(bmiHeight);
                         patientData.setBmiValue(bmiValue);
                         patientData.setBmiRemark(bmiRemark);
-                        patientData.setEncounterDate(encounterSqlDate);
                         patientDataRepository.save(patientData);
-                        totalRecordsUpdated++;
+                        response.put("totalRecordsUpdated", response.get("totalRecordsUpdated") + 1);
                     }
+
+                    response.put("totalRowsFromCsv", response.get("totalRowsFromCsv") + 1);
+
+                } catch (NumberFormatException | ParseException e) {
+                    log.warn("Error parsing row: {}, Exception: {}", Arrays.toString(line), e.getMessage());
                 }
             }
-
-            response.put("totalRowsFromCsv", totalRowsFromCsv);
-            response.put("totalRowsFromDatabase", totalRowsFromDatabase);
-            response.put("totalRecordsUpdated", totalRecordsUpdated);
 
             log.info("Response: {}", response);
 
         } catch (Exception e) {
             log.error("An error occurred while processing the CSV file: {}", e.getMessage(), e);
+            throw new Exception("Error processing CSV file", e);
         }
 
         return response;
+
+//        Map<String, Integer> response = new HashMap<>();
+//
+//        try (Reader reader = new BufferedReader(new InputStreamReader(file.getInputStream()))) {
+//            CSVReader csvReader = new CSVReader(reader);
+//            // Skip header row (optional)
+//            csvReader.readNext();
+//
+//            int totalRowsFromCsv = 0;
+//            int totalRowsFromDatabase = 0;
+//            int totalRecordsUpdated = 0;
+//
+//            String[] line;
+//            while ((line = csvReader.readNext()) != null) {
+//                totalRowsFromCsv++;
+//
+//                // Assuming patient_id is in the first column, and other fields follow
+//                int integratorId = Integer.parseInt(line[0]);
+//                String patientIdentifier = line[1].trim();
+//                double ncdBpUpper = Double.parseDouble(line[2]);
+//                double ncdBpLower = Double.parseDouble(line[3]);
+//                double ncdRbs = Double.parseDouble(line[4]);
+//                double bmiWeight = Double.parseDouble(line[5]);
+//                double bmiHeight = Double.parseDouble(line[6]);
+//                double bmiValue = Double.parseDouble(line[7]);
+//                String bmiRemark = line[8].trim();
+//                SimpleDateFormat formatter = new SimpleDateFormat("dd/MM/yyyy");
+//                String encounterDateString = line[9].trim();
+//                Date encounterDate = formatter.parse(encounterDateString);
+//                java.sql.Date encounterSqlDate = new java.sql.Date(encounterDate.getTime());
+//
+//                if (encounterSqlDate != null) {
+//                    Optional<PatientData> patientDataOptional = patientDataRepository.findByIntegratorIdAndPatientIdentifierAndEncounterDate(integratorId,patientIdentifier, encounterSqlDate);
+//                    if (patientDataOptional.isPresent()) {
+//                        totalRowsFromDatabase++;
+//                        PatientData patientData = patientDataOptional.get();
+//                        patientData.setNcdBpUpper(ncdBpUpper);
+//                        patientData.setNcdBpLower(ncdBpLower);
+//                        patientData.setNcdRbs(ncdRbs);
+//                        patientData.setBmiWeight(bmiWeight);
+//                        patientData.setBmiHeight(bmiHeight);
+//                        patientData.setBmiValue(bmiValue);
+//                        patientData.setBmiRemark(bmiRemark);
+//                        patientData.setEncounterDate(encounterSqlDate);
+//                        patientDataRepository.save(patientData);
+//                        totalRecordsUpdated++;
+//                    }
+//                }
+//            }
+//
+//            response.put("totalRowsFromCsv", totalRowsFromCsv);
+//            response.put("totalRowsFromDatabase", totalRowsFromDatabase);
+//            response.put("totalRecordsUpdated", totalRecordsUpdated);
+//
+//            log.info("Response: {}", response);
+//
+//        } catch (Exception e) {
+//            log.error("An error occurred while processing the CSV file: {}", e.getMessage(), e);
+//        }
+//
+//        return response;
     }
 
 
