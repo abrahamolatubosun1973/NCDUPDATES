@@ -91,7 +91,7 @@ public class ExcelService {
 
         } catch (Exception e) {
             log.error("An error occurred while processing the CSV file: {}", e.getMessage(), e);
-            throw new Exception("Error processing CSV file", e);
+            throw new Exception("Error processing CSV's file", e);
         }
 
         return response;
